@@ -49,6 +49,9 @@ data    segment
     yrnum   dw      ?                           ;年数字
     daynum  dw      ?                           ;天数字
     tbln    dw      2 dup(?)                    ;[tbl]:year/day [tbl+2]:yrnum/daynum
+    ;judleap子程序
+    isleap  db      0                           ;是否是闰年标志位 1是2不是
+    tbll    dw      2 dup(?)                    ;[tbl]:yrnum [tbl+2]:isleap
 data    ends
 
 code    segment
@@ -114,6 +117,11 @@ code    segment
             mov     tbln+2, offset yrnum
             mov     bx, offset tbln
             call    str2num
+            ; judge leap year
+            mov     tbll,offset yrnum
+            mov     tbll+2,offset isleap
+            mov     bx, offset tbll
+            call    judleap
     mthtip: mov     dx, offset daytxt       ;提示输入天
             mov     ah, 09h
             int     21h
@@ -257,5 +265,52 @@ code    segment
             pop     si
             ret
     str2num endp
+    ;判断闰年子程序
+    ;使用 si ax cx dx di
+    ;params year[tbl]
+    ;ret    isleap[tbl+2]
+    judleap proc    near
+            push    si
+            push    ax
+            push    cx
+            push    dx
+            push    di
+            ;数据准备
+            mov     si, [bx];year EA送si
+            mov     ax, [si];以si内容为EA的内存内容（year）送ax，用作除法
+            mov     cx, ax;备份年份，因为ax会被改掉
+            mov     dx, 0;被除数dx_ax是32位，此处dx为0
+            ;判断能否被100整除
+            mov     di, 100;di用于存储除数
+            div     di
+            cmp     dx, 0;判断余数是否为0
+            jnz     jud4;如果不能被100整除则判断能否被4整除
+            ;判断能否被400整除
+            mov     ax, cx;将年份从cx恢复
+            mov     dx, 0;恢复dx为0（虽然此处一定为0，但保险）
+            mov     di, 400
+            div     di
+            cmp     dx, 0
+            jz      islp;如果能被400整除则跳转至是闰年islp
+            jmp     isnlp;其余的不是闰年跳转至非闰年isnlp
+            ;判断能否被4整除
+    jud4:   mov     ax, cx;将年份从cx恢复
+            mov     dx, 0;恢复dx为0
+            mov     di, 4
+            div     di
+            cmp     dx, 0
+            jnz     isnlp;如果不能被4整除则不是闰年，是闰年的不用判断走下一步
+    islp:   mov     di, [bx+2]
+            mov     byte ptr [di],1h
+            jmp     judok
+    isnlp:  mov     di, [bx+2]
+            mov     byte ptr [di],2h;如果不是的直接写入2走下一步不用跳转
+    judok:  pop     di
+            pop     dx
+            pop     cx
+            pop     ax
+            pop     si
+            ret
+    judleap endp
 code    ends
         end     start
