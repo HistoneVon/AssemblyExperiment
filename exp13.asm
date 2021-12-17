@@ -45,6 +45,10 @@ data    segment
     e       db      "e","$"
     a       db      "a","$"
     b       db      "b","$"
+    ;str2num子程序
+    yrnum   dw      ?                           ;年数字
+    daynum  dw      ?                           ;天数字
+    tbln    dw      2 dup(?)                    ;[tbl]:year/day [tbl+2]:yrnum/daynum
 data    ends
 
 code    segment
@@ -88,16 +92,28 @@ code    segment
             mov     bx, offset tbl
             call    strcmp                  ;调用字符串比较子程序
             cmp     cmprslt, 2h             ;numbuf<yrmax
-            ; jz      leapyr
-            jz      mthtip
+            jz      leapyr
+            ; jz      mthtip
             cmp     cmprslt, 3h             ;numbuf=yrmax
-            ; jz      leapyr
-            jz      mthtip
+            jz      leapyr
+            ; jz      mthtip
             mov     dx, offset yrwarn       ;输出错误提示
             mov     ah, 09h
             int     21h
             jmp     yrin
-    ; leapyr: 
+    leapyr: ; copy year to year var
+            mov     ax, data
+            mov     es, ax                  ;装附加段
+            mov     cx, 5h                  ;五个的原因是把$符也复制过去
+            lea     si, nmbuf               ;设置源串指针
+            lea     di, year                ;设置目的串指针
+            cld                             ;DF=0地址正向增加
+            rep     movsb                   ;重复四次将年挪动至year变量处
+            ; str2num
+            mov     tbln,offset year
+            mov     tbln+2, offset yrnum
+            mov     bx, offset tbln
+            call    str2num
     mthtip: mov     dx, offset daytxt       ;提示输入天
             mov     ah, 09h
             int     21h
@@ -201,5 +217,45 @@ code    segment
             pop     ax
             ret
     strcmp  endp
+    ;秦久韶算法字符串转数字子程序
+    ;使用 si cx dx ax di
+    ;params strg[tbl]
+    ;ret    num[tbl+2]
+    str2num proc    near
+            push    si
+            push    cx
+            push    dx
+            push    ax
+            push    di
+            mov     si, 0                   ;初始偏移量0
+            sub     ax, ax                  ;ax清零
+            sub     cx, cx                  ;cx用于暂存num值，初始化为0
+            mov     dx, 10                  ;秦久韶算法每次乘10
+            mov     di, [bx+si]             ;strg EA
+    lop:    mov     al, [di]
+            cmp     al, 24h                 ;如果al为24h（$）
+            je      final                   ;则退出子程序
+            sub     al, 30h                 ;如果al不为0则减30h，即转化为数字
+            cmp     cx, 0                   ;如果cx(num)为0
+            je      do_deal                 ;直接跳转到相加的位置
+            push    ax                      ;保护ax
+            mov     ax, cx                  ;将之前加过的cx(num)放入ax
+            mul     dx                      ;src是dx中的值(10)，则ax(cx)*10
+            mov     dx, 10                  ;恢复dx为10
+            mov     cx, ax                  ;将乘10后的值交给cx
+            pop     ax                      ;还原ax（这一位的值）
+    do_deal:add     cx, ax                  ;将ax(al)中的数加入cx(num)
+            mov     ax, 0                   ;ax清零
+            inc     di                      ;偏移加1
+            jmp     lop                     ;无条件跳转至下一位计算
+    final:  mov     di, [bx+2]              ;将num的offset给di
+            mov     [di],cx                 ;cx中的值传回num(yrnum/daynum)
+            pop     di
+            pop     ax
+            pop     dx
+            pop     cx
+            pop     si
+            ret
+    str2num endp
 code    ends
         end     start
