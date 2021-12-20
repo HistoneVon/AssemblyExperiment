@@ -63,6 +63,31 @@ data    segment
     mthstr  db      5 dup(?)                    ;月份字符
     datestr db      5 dup(?)                    ;日期字符
     tbls    dw      2 dup(?)                    ;[tbl]:num [tbl+2]:str
+    ;reverse子程序
+    len     db      ?                           ;要反向的字节数
+    tblr    dw      2 dup(?)                    ;[tbl]:str [tbl+2]:len
+    ;输出部分
+    txtthe  db      "The ","$"
+    suf1st  db      "st ","$"
+    suf2nd  db      "nd ","$"
+    suf3rd  db      "rd ","$"
+    sufothr db     "th ","$"
+    txtof   db      "day of the year ","$"
+    txtis   db      " is ","$"
+    mjan    db      "Jan. ","$"
+    mfeb    db      "Feb. ","$"
+    mmar    db      "Mar. ","$"
+    mapr    db      "Apr. ","$"
+    mmay    db      "May ","$"
+    mjun    db      "June ","$"
+    mjul    db      "July ","$"
+    maug    db      "Aug. ","$"
+    msep    db      "Sept. ","$"
+    moct    db      "Oct. ","$"
+    mnov    db      "Nov. ","$"
+    mdec    db      "Dec. ","$"
+    period  db      ".","$"
+    tblm    dw      12 dup(?)                   ;为解决月份缩写长度不一样的问题而使用类似地址表传参的方法
 data    ends
 
 code    segment
@@ -250,6 +275,84 @@ code    segment
             call    num2str
             mov     si, 2h                  ;加$
             mov     datestr[si],24h
+            ;字符串反向
+            mov     len,2h                  ;设置位数2
+            mov     tblr,offset mthstr      ;月反向
+            mov     tblr+2,offset len
+            mov     bx, offset tblr
+            call    reverse
+            mov     tblr,offset datestr     ;日期反向
+            mov     tblr+2,offset len
+            mov     bx, offset tblr
+            call    reverse
+    outpt:  ;输出结果
+            mov     dx, offset txtthe
+            mov     ah, 09h
+            int     21h
+            mov     dx, offset day
+            mov     ah, 09h
+            int     21h
+            ;后缀
+            mov     bx, 2h
+            cmp     day[bx],31h
+            jz      frst
+            cmp     day[bx],32h
+            jz      snd
+            cmp     day[bx],33h
+            jz      trd
+            mov     dx, offset sufothr
+            mov     ah, 09h
+            int     21h
+            jmp     otof
+    frst:   mov     dx, offset suf1st
+            mov     ah, 09h
+            int     21h
+            jmp     otof
+    snd:    mov     dx, offset suf2nd
+            mov     ah, 09h
+            int     21h
+            jmp     otof
+    trd:    mov     dx, offset suf3rd
+            mov     ah, 09h
+            int     21h
+            jmp     otof
+    otof:   mov     dx, offset txtof
+            mov     ah, 09h
+            int     21h
+            mov     dx, offset year
+            mov     ah, 09h
+            int     21h
+            mov     dx, offset txtis
+            mov     ah, 09h
+            int     21h
+            ;月缩写
+            ;装月份地址表
+            mov     tblm,offset mjan
+            mov     tblm+2,offset mfeb
+            mov     tblm+4,offset mmar
+            mov     tblm+6,offset mapr
+            mov     tblm+8,offset mmay
+            mov     tblm+10,offset mjun
+            mov     tblm+12,offset mjul
+            mov     tblm+14,offset maug
+            mov     tblm+16,offset msep
+            mov     tblm+18,offset moct
+            mov     tblm+20,offset mnov
+            mov     tblm+22,offset mdec
+            mov     ax, mthnum
+            dec     ax;月份转下标
+            mov     bx, 2h
+            mul     bx
+            mov     bx, ax
+            mov     dx, tblm[bx]
+            mov     ah, 09h
+            int     21h
+            mov     dx, offset datestr
+            mov     ah, 09h
+            int     21h
+            mov     dx, offset period
+            mov     ah, 09h
+            int     21h
     stop:   mov     ax, 4c00h
             int     21h                     ;程序结束
     main    endp
@@ -422,5 +525,42 @@ code    segment
             pop     ax
             ret
     num2str endp
+    ;内存字节逆序函数
+    ;使用 si ax di dx cx
+    ;params str[tbl]
+    ;       length[tbl+2]
+    reverse proc    near
+            push    si
+            push    ax
+            push    di
+            push    dx
+            push    cx
+            mov     di, [bx+2];len EA
+            mov     di, [di];di存len
+            and     di, 00ffh;高位清零
+            mov     dx, di;保存len副本
+            mov     si, [bx];str EA
+    nxtch:  mov     ax, [si]
+            and     ax, 00ffh
+            push    ax
+            inc     si;偏移量向后
+            dec     di;计数器减一
+            jnz     nxtch;入果计数器不是0，则下一字节
+            ;如果计数器为0
+    popnxt: pop     cx;将入栈的字节出栈
+            push    bx;暂存bx
+            mov     bx, [bx]
+            mov     [bx+di],cl;将入栈的几个pop回原地址（反向）
+            pop     bx;恢复bx
+            inc     di
+            cmp     dx, di;判断di是否回到len值
+            jnz     popnxt;没回到就继续
+            pop     cx
+            pop     dx
+            pop     di
+            pop     ax
+            pop     si
+            ret
+    reverse endp
 code    ends
         end     start
