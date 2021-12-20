@@ -14,6 +14,7 @@ data    segment
     daytxt  db      'Input your day (001-366): ','$'    ;输入天数提示字符串
     yrwarn  db      'Your year is valid, input again: ','$'
     daywarn db      'Your day is valid, input again: ','$'
+    lpwarn  db      'Judgement of leap error! ','$';闰年判断错误输出
     maxlen  db      8h                          ;最多允许接收的字符个数（包含回车符0DH）（缓冲区首地址）
     actlen  db      ?                           ;留空，用于自动回填实际输入字符个数（不含0DH）
     nmbuf   db      8h dup(0)                   ;预设缓冲区（真实的字符串起始地址）
@@ -24,18 +25,18 @@ data    segment
     yrmax   db      '2999',0dh,0ah,'$'          ;最大年份
     daymin  db      '001',0dh,0ah,'$'           ;最小天
     daymax  db      '366',0dh,0ah,'$'           ;最大天
-    mth     db      31                          ;平年
-            db      28                          ;如果闰年就加一
-            db      31
-            db      30
-            db      31
-            db      30
-            db      31
-            db      31
-            db      30
-            db      31
-            db      30
-            db      31
+    mth     dw      31                          ;平年
+            dw      28                          ;如果闰年就加一
+            dw      31
+            dw      30
+            dw      31
+            dw      30
+            dw      31
+            dw      31
+            dw      30
+            dw      31
+            dw      30
+            dw      31
     ;strcmp子程序
     cmprslt db      0                           ;字符串比较结果（strcmp返回值）
     stra    db      8h dup(?)                   ;参数a
@@ -52,6 +53,16 @@ data    segment
     ;judleap子程序
     isleap  db      0                           ;是否是闰年标志位 1是2不是
     tbll    dw      2 dup(?)                    ;[tbl]:yrnum [tbl+2]:isleap
+    ;chgfeb程序段
+    lptxt   db      'Leap year set Feb. 29 days.','$';更改二月提示字符串
+    ;calc程序段（计算天数）
+    mthwarn db      'Overflow of days','$'      ;输入天数警告字符串（保险起见）
+    mthnum  dw      ?                           ;月份数字
+    datenum dw      ?                           ;日期数字
+    ;num2str子程序
+    mthstr  db      5 dup(?)                    ;月份字符
+    datestr db      5 dup(?)                    ;日期字符
+    tbls    dw      2 dup(?)                    ;[tbl]:num [tbl+2]:str
 data    ends
 
 code    segment
@@ -111,7 +122,7 @@ code    segment
             lea     si, nmbuf               ;设置源串指针
             lea     di, year                ;设置目的串指针
             cld                             ;DF=0地址正向增加
-            rep     movsb                   ;重复四次将年挪动至year变量处
+            rep     movsb                   ;重复5次将年挪动至year变量处
             ; str2num
             mov     tbln,offset year
             mov     tbln+2, offset yrnum
@@ -122,6 +133,22 @@ code    segment
             mov     tbll+2,offset isleap
             mov     bx, offset tbll
             call    judleap
+            ;根据最终的判断结果决定是否修改2月
+            cmp     isleap, 1h              ;如果是闰年
+            jz      chgfeb                  ;跳转至2月更改程序段
+            cmp     isleap, 2h              ;如果不是闰年
+            jz      mthtip                  ;直接跳转至月份输入
+            mov     dx, offset lpwarn       ;提示闰年判断错误（即不满足上两种情况，保险起见）
+            mov     ah, 09h
+            int     21h
+            putcrlf
+            jmp     stop                    ;直接退出程序
+    chgfeb: ;修改二月
+            mov     mth+2,  29              ;改为29天
+            mov     dx, offset lptxt        ;提示已经更改二月
+            mov     ah, 09h
+            int     21h
+            putcrlf
     mthtip: mov     dx, offset daytxt       ;提示输入天
             mov     ah, 09h
             int     21h
@@ -159,16 +186,70 @@ code    segment
             mov     bx, offset tbl
             call    strcmp                  ;调用字符串比较子程序
             cmp     cmprslt, 2h             ;numbuf<daymax
-            jz      t
+            jz      d2num                   ;跳转至天数字符串转数字
+            ; jz      t
             cmp     cmprslt, 3h             ;numbuf=daymax
-            jz      t
+            jz      d2num                   ;跳转至天数字符串转数字
+            ; jz      t
             mov     dx, offset daywarn      ;输出错误提示
             mov     ah, 09h
             int     21h
             jmp     mthin
-    t:      lea     dx, nmbuf               ;输出输入的字符串
+    ; t:      lea     dx, nmbuf               ;输出输入的字符串
+    ;         mov     ah, 09h
+    ;         int     21h
+    d2num:  ; copy day to day var
+            mov     ax, data
+            mov     es, ax                  ;装附加段
+            mov     cx, 4h                  ;4个的原因是把$符也复制过去
+            lea     si, nmbuf               ;设置源串指针
+            lea     di, day                 ;设置目的串指针
+            cld                             ;DF=0地址正向增加
+            rep     movsb                   ;重复四次将年挪动至day变量处
+            ;str2num
+            mov     tbln,offset day
+            mov     tbln+2, offset daynum
+            mov     bx, offset tbln
+            call    str2num
+            ;计算月份和日期
+            mov     cx, daynum              ;将天数转存到cx
+            mov     si, 0                   ;第一次偏移量为0
+    calc:   cmp     cx, mth[si]             ;比较剩余天数和本月日期
+            jbe     current                 ;小于等于就是当月
+            sub     cx, mth[si]             ;不是当月就减去这个月
+            inc     si
+            inc     si                      ;si加2（下一月dw）
+            cmp     si, 24                  ;如果是13月（0-11 12*2）
+            jz      mwarn                   ;如果超出月份跳转输出警告
+            jnz     calc                    ;如果没超出继续计算
+    current:mov     datenum,cx              ;保存日期
+            inc     si
+            inc     si                      ;si+2下标修正为序数(*2)
+            mov     dx, 0                   ;除法准备（被除数高16位）
+            mov     ax, si                  ;除法准备（被除数低16位）
+            mov     bx, 2h                  ;除法准备（除数为2）
+            div     bx                      ;dx_ax/2=ax...dx
+            mov     mthnum, ax              ;保存月份
+            jmp     n2s                     ;跳转至数字转字符串
+    mwarn:  mov     dx, offset mthwarn      ;提示天数超出警告
             mov     ah, 09h
             int     21h
+            jmp     stop                    ;直接退出程序
+    n2s:    ;数字转字符串
+            ;月份
+            mov     tbls,offset mthnum
+            mov     tbls+2,offset mthstr
+            mov     bx, offset tbls
+            call    num2str
+            mov     si, 2h                  ;加$
+            mov     mthstr[si], 24h
+            ;日期
+            mov     tbls,offset datenum
+            mov     tbls+2,offset datestr
+            mov     bx, offset tbls
+            call    num2str
+            mov     si, 2h                  ;加$
+            mov     datestr[si],24h
     stop:   mov     ax, 4c00h
             int     21h                     ;程序结束
     main    endp
@@ -312,5 +393,34 @@ code    segment
             pop     si
             ret
     judleap endp
+    ;短除法数字转字符串（反向）
+    ;使用 ax dx cx si
+    ;params num[tbl]
+    ;ret    str[tbl+2]
+    num2str proc    near
+            push    ax;低16位
+            push    dx;高16位
+            push    cx;除数
+            push    si;中继 作为偏移量存str用
+            mov     si, [bx];num的EA
+            mov     ax, [si];num内容（num）送ax
+            mov     cx, 10;除数为10
+            mov     si, 0;si清零，用于字符串偏移
+    rediv:  mov     dx, 0;高16位为0
+            div     cx;dx_ax/cx=ax...dx
+            add     dx, 0030h;余数转为字符串
+            push    bx;暂存bx
+            mov     bx, [bx+2];将目前字符的EA送bx
+            mov     [bx+si],dl;dx低位送str[si]，高位为0
+            pop     bx;恢复bx
+            inc     si;偏移量加一
+            cmp     ax, 0
+            jnz     rediv;如果商不为0则继续除
+            pop     si
+            pop     cx
+            pop     dx
+            pop     ax
+            ret
+    num2str endp
 code    ends
         end     start
