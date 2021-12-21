@@ -10,7 +10,7 @@ putcrlf macro   ;回车符
         endm
 
 data    segment
-    yrtxt   db      'Input your year (0001-2999): ','$'     ;输入年提示字符串
+    yrtxt   db      'Input your year (0001-2999): ','$' ;输入年提示字符串
     daytxt  db      'Input your day (001-366): ','$'    ;输入天数提示字符串
     yrwarn  db      'Your year is valid, input again: ','$'
     daywarn db      'Your day is valid, input again: ','$'
@@ -19,8 +19,8 @@ data    segment
     actlen  db      ?                           ;留空，用于自动回填实际输入字符个数（不含0DH）
     nmbuf   db      8h dup(0)                   ;预设缓冲区（真实的字符串起始地址）
     crlf    db      0dh,0ah,'$'                 ;预设回车符 换行符 结束符
-    year    db      8h dup(0);TODO 多长足够，是否可以这么定义
-    day     db      6h dup(0);TODO 多长足够，是否可以这么定义
+    year    db      8h dup(0)                   ;TODO 多长足够
+    day     db      6h dup(0)                   ;TODO 多长足够
     yrmin   db      '0001',0dh,0ah,'$'          ;最小年份
     yrmax   db      '2999',0dh,0ah,'$'          ;最大年份
     daymin  db      '001',0dh,0ah,'$'           ;最小天
@@ -56,7 +56,7 @@ data    segment
     ;chgfeb程序段
     lptxt   db      'Leap year set Feb. 29 days.','$';更改二月提示字符串
     ;calc程序段（计算天数）
-    mthwarn db      'Overflow of days','$'      ;输入天数警告字符串（保险起见）
+    mthwarn db      'Overflow of days, maybe its ordinary year.','$';输入天数警告字符串（平年）
     mthnum  dw      ?                           ;月份数字
     datenum dw      ?                           ;日期数字
     ;num2str子程序
@@ -460,35 +460,35 @@ code    segment
             push    dx
             push    di
             ;数据准备
-            mov     si, [bx];year EA送si
-            mov     ax, [si];以si内容为EA的内存内容（year）送ax，用作除法
-            mov     cx, ax;备份年份，因为ax会被改掉
-            mov     dx, 0;被除数dx_ax是32位，此处dx为0
+            mov     si, [bx]                ;year EA送si
+            mov     ax, [si]                ;以si内容为EA的内存内容（year）送ax，用作除法
+            mov     cx, ax                  ;备份年份，因为ax会被改掉
+            mov     dx, 0                   ;被除数dx_ax是32位，此处dx为0
             ;判断能否被100整除
-            mov     di, 100;di用于存储除数
+            mov     di, 100                 ;di用于存储除数
             div     di
-            cmp     dx, 0;判断余数是否为0
-            jnz     jud4;如果不能被100整除则判断能否被4整除
+            cmp     dx, 0                   ;判断余数是否为0
+            jnz     jud4                    ;如果不能被100整除则判断能否被4整除
             ;判断能否被400整除
-            mov     ax, cx;将年份从cx恢复
-            mov     dx, 0;恢复dx为0（虽然此处一定为0，但保险）
+            mov     ax, cx                  ;将年份从cx恢复
+            mov     dx, 0                   ;恢复dx为0（虽然此处一定为0，但保险）
             mov     di, 400
             div     di
             cmp     dx, 0
-            jz      islp;如果能被400整除则跳转至是闰年islp
-            jmp     isnlp;其余的不是闰年跳转至非闰年isnlp
+            jz      islp                    ;如果能被400整除则跳转至是闰年islp
+            jmp     isnlp                   ;其余的不是闰年跳转至非闰年isnlp
             ;判断能否被4整除
-    jud4:   mov     ax, cx;将年份从cx恢复
-            mov     dx, 0;恢复dx为0
+    jud4:   mov     ax, cx                  ;将年份从cx恢复
+            mov     dx, 0                   ;恢复dx为0
             mov     di, 4
             div     di
             cmp     dx, 0
-            jnz     isnlp;如果不能被4整除则不是闰年，是闰年的不用判断走下一步
+            jnz     isnlp                   ;如果不能被4整除则不是闰年，是闰年的不用判断走下一步
     islp:   mov     di, [bx+2]
             mov     byte ptr [di],1h
             jmp     judok
     isnlp:  mov     di, [bx+2]
-            mov     byte ptr [di],2h;如果不是的直接写入2走下一步不用跳转
+            mov     byte ptr [di],2h        ;如果不是的直接写入2走下一步不用跳转
     judok:  pop     di
             pop     dx
             pop     cx
@@ -501,24 +501,24 @@ code    segment
     ;params num[tbl]
     ;ret    str[tbl+2]
     num2str proc    near
-            push    ax;低16位
-            push    dx;高16位
-            push    cx;除数
-            push    si;中继 作为偏移量存str用
-            mov     si, [bx];num的EA
-            mov     ax, [si];num内容（num）送ax
-            mov     cx, 10;除数为10
-            mov     si, 0;si清零，用于字符串偏移
-    rediv:  mov     dx, 0;高16位为0
-            div     cx;dx_ax/cx=ax...dx
-            add     dx, 0030h;余数转为字符串
-            push    bx;暂存bx
-            mov     bx, [bx+2];将目前字符的EA送bx
-            mov     [bx+si],dl;dx低位送str[si]，高位为0
-            pop     bx;恢复bx
-            inc     si;偏移量加一
+            push    ax                      ;低16位
+            push    dx                      ;高16位
+            push    cx                      ;除数
+            push    si                      ;中继 作为偏移量存str用
+            mov     si, [bx]                ;num的EA
+            mov     ax, [si]                ;num内容（num）送ax
+            mov     cx, 10                  ;除数为10
+            mov     si, 0                   ;si清零，用于字符串偏移
+    rediv:  mov     dx, 0                   ;高16位为0
+            div     cx                      ;dx_ax/cx=ax...dx
+            add     dx, 0030h               ;余数转为字符串
+            push    bx                      ;暂存bx
+            mov     bx, [bx+2]              ;将目前字符的EA送bx
+            mov     [bx+si],dl              ;dx低位送str[si]，高位为0
+            pop     bx                      ;恢复bx
+            inc     si                      ;偏移量加一
             cmp     ax, 0
-            jnz     rediv;如果商不为0则继续除
+            jnz     rediv                   ;如果商不为0则继续除
             pop     si
             pop     cx
             pop     dx
@@ -535,26 +535,26 @@ code    segment
             push    di
             push    dx
             push    cx
-            mov     di, [bx+2];len EA
-            mov     di, [di];di存len
-            and     di, 00ffh;高位清零
-            mov     dx, di;保存len副本
-            mov     si, [bx];str EA
+            mov     di, [bx+2]              ;len EA
+            mov     di, [di]                ;di存len
+            and     di, 00ffh               ;高位清零
+            mov     dx, di                  ;保存len副本
+            mov     si, [bx]                ;str EA
     nxtch:  mov     ax, [si]
             and     ax, 00ffh
             push    ax
-            inc     si;偏移量向后
-            dec     di;计数器减一
-            jnz     nxtch;入果计数器不是0，则下一字节
+            inc     si                      ;偏移量向后
+            dec     di                      ;计数器减一
+            jnz     nxtch                   ;入果计数器不是0，则下一字节
             ;如果计数器为0
-    popnxt: pop     cx;将入栈的字节出栈
-            push    bx;暂存bx
+    popnxt: pop     cx                      ;将入栈的字节出栈
+            push    bx                      ;暂存bx
             mov     bx, [bx]
-            mov     [bx+di],cl;将入栈的几个pop回原地址（反向）
-            pop     bx;恢复bx
+            mov     [bx+di],cl              ;将入栈的几个pop回原地址（反向）
+            pop     bx                      ;恢复bx
             inc     di
-            cmp     dx, di;判断di是否回到len值
-            jnz     popnxt;没回到就继续
+            cmp     dx, di                  ;判断di是否回到len值
+            jnz     popnxt                  ;没回到就继续
             pop     cx
             pop     dx
             pop     di
