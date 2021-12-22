@@ -12,8 +12,8 @@ putcrlf macro   ;回车符
 data    segment
     yrtxt   db      'Input your year (0001-2999): ','$' ;输入年提示字符串
     daytxt  db      'Input your day (001-366): ','$'    ;输入天数提示字符串
-    yrwarn  db      'Your year is valid, input again: ','$'
-    daywarn db      'Your day is valid, input again: ','$'
+    yrwarn  db      'Your year is invalid, input again: ','$'
+    daywarn db      'Your day is invalid, input again: ','$'
     lpwarn  db      'Judgement of leap error! ','$';闰年判断错误输出
     maxlen  db      8h                          ;最多允许接收的字符个数（包含回车符0DH）（缓冲区首地址）
     actlen  db      ?                           ;留空，用于自动回填实际输入字符个数（不含0DH）
