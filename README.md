@@ -8,7 +8,7 @@
 
 * 本仓库是哈尔滨工业大学（威海）汇编与接口技术课程实验（HD）
 * 汇编实验题目
-* ![image-20220717234605380](/Users/histonevon/Workspace/AssemblyProjects/AssemblyExperiment/README.assets/image-20220717234605380-8073897.png)
+* ![image-20220717234605380](https://histone-obs.obs.cn-southwest-2.myhuaweicloud.com/noteImg/image-20220717234605380-8073897.png)
 * 本仓库地址：https://github.com/HistoneVon/AssemblyExperiment
 
 **开发环境**
